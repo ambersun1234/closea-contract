@@ -13,6 +13,6 @@ jobs:
     - name: Install dependencies
       run: yarn install
     - name: Lint
-      uses: wearerequired/lint-action@v2
+      uses: wearerequired/lint-action@v2.3.0
       with:
         prettier: true
