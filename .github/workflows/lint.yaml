@@ -1,0 +1,16 @@
+name: lint
+on: [push]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Run linter
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Environment
+      uses: actions/setup-node@v3
+    - name: Lint
+      uses: wearerequired/lint-action@v2
+      with:
+        prettier: true
