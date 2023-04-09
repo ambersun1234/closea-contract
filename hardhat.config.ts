@@ -6,15 +6,11 @@ import "@nomicfoundation/hardhat-toolbox";
 import "dotenv/config";
 import "hardhat-contract-sizer";
 
-import {
-    EtherscanAPIKey,
-    PrivateKey,
-    SepoliaRPCUrl
-} from "./utils/env";
+import { EtherscanAPIKey, PrivateKey, SepoliaRPCUrl } from "./utils/env";
 
 const config: HardhatUserConfig = {
     solidity: {
-        compilers: [{ version: "0.8.18" }, {version: "0.6.6"}]
+        compilers: [{ version: "0.8.18" }, { version: "0.6.6" }]
     },
     networks: {
         sepolia: {

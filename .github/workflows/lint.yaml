@@ -1,6 +1,10 @@
 name: lint
 on: [push]
 
+permissions:
+  checks: write
+  contents: write
+
 jobs:
   lint:
     runs-on: ubuntu-latest
