@@ -16,6 +16,8 @@ jobs:
       uses: actions/setup-node@v3
     - name: Install dependencies
       run: yarn install
+    - name: Add prettier ignore
+      run: echo -e '*\n!.ts' > .prettierignore
     - name: Lint
       uses: wearerequired/lint-action@v2.3.0
       with:
