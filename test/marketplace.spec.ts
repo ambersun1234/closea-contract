@@ -289,4 +289,77 @@ describe("marketplace", () => {
             );
         });
     });
+
+    describe("updateList", () => {
+        it("Should revert if non-owner attempt to change price", async () => {
+            const people = (await ethers.getSigners())[1];
+            const peopleMarketplaceContract = marketplace.connect(people);
+
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+
+            await expect(
+                peopleMarketplaceContract.updateListNFT(dogNft.address, 0, 2)
+            ).to.be.revertedWithCustomError(marketplace, NotNFTOwner);
+        });
+
+        it("Should revert if item not listed", async () => {
+            await mint();
+            await approve(0);
+
+            await expect(
+                marketplace.updateListNFT(dogNft.address, 0, 2)
+            ).to.be.revertedWithCustomError(marketplace, NotListed);
+        });
+
+        it("Should update item successfully", async () => {
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+
+            const response = await marketplace.updateListNFT(
+                dogNft.address,
+                0,
+                2
+            );
+            assert.equal(await transactionStatus(response), statusSuccess);
+        });
+
+        it("Should use new price to mint after update list successfully", async () => {
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+            await marketplace.updateListNFT(dogNft.address, 0, 2);
+
+            await expect(
+                marketplace.purchaseNFT(dogNft.address, 0, { value: 1 })
+            ).to.be.revertedWithCustomError(marketplace, PriceNotEnough);
+            const response = await marketplace.purchaseNFT(dogNft.address, 0, {
+                value: 2
+            });
+            assert.equal(await transactionStatus(response), statusSuccess);
+        });
+
+        it("Should emit event after item updated", async () => {
+            const newPrice = 2;
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+
+            const response = await marketplace.updateListNFT(
+                dogNft.address,
+                0,
+                newPrice
+            );
+            const receipt = await response.wait(1);
+            expect(response).to.be.emit(marketplace, ItemListed);
+
+            const eventData = receipt.events![0].args!;
+            assert.equal(eventData[0], deployer);
+            assert.equal(eventData[1], dogNft.address);
+            assert.equal(eventData[2], 0);
+            assert.equal(eventData[3], newPrice);
+        });
+    });
 });
