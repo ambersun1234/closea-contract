@@ -11,6 +11,11 @@ describe("marketplace", () => {
     const PriceTooLow = "Marketplace__PriceTooLow";
     const PriceNotEnough = "Marketplace__PriceNotEnough";
     const NotListed = "Marketplace__NotListed";
+
+    const ItemTransferred = "ItemTransferred";
+    const ItemListed = "ItemListed";
+    const ItemUnList = "ItemUnList";
+
     const statusSuccess = 1;
 
     let marketplace: Marketplace;
@@ -114,7 +119,7 @@ describe("marketplace", () => {
             );
             const receipt = await response.wait(1);
 
-            expect(response).to.be.emit(marketplace, "ItemListed");
+            expect(response).to.be.emit(marketplace, ItemListed);
 
             const eventData = receipt.events![0].args!;
             assert.equal(eventData[0], deployer);
@@ -223,12 +228,65 @@ describe("marketplace", () => {
             });
             const receipt = await response.wait(1);
 
-            expect(response).to.be.emit(marketplace, "ItemTransferred");
+            expect(response).to.be.emit(marketplace, ItemTransferred);
 
             const eventData = receipt.events![1].args!;
             assert.equal(eventData[0], deployer);
             assert.equal(eventData[1], dogNft.address);
             assert.equal(eventData[2], 0);
+        });
+    });
+
+    describe("unList", () => {
+        it("Should revert if not nft owner", async () => {
+            const people = (await ethers.getSigners())[1];
+            const peopleContract = marketplace.connect(people);
+
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+
+            await expect(
+                peopleContract.unListNFT(dogNft.address, 0)
+            ).to.be.revertedWithCustomError(marketplace, NotNFTOwner);
+        });
+
+        it("Should revert if nft not listed", async () => {
+            await mint();
+            await approve(0);
+            await expect(
+                marketplace.unListNFT(dogNft.address, 0)
+            ).to.be.revertedWithCustomError(marketplace, NotListed);
+        });
+
+        it("Shouldn't be able to buy nft after unlist", async () => {
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+            await marketplace.unListNFT(dogNft.address, 0);
+            await expect(
+                marketplace.purchaseNFT(dogNft.address, 0)
+            ).to.be.revertedWithCustomError(marketplace, NotListed);
+        });
+
+        it("Should unlist successfully", async () => {
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+
+            const response = await marketplace.unListNFT(dogNft.address, 0);
+            assert.equal(await transactionStatus(response), statusSuccess);
+        });
+
+        it("Should emit event when successfully unlist", async () => {
+            await mint();
+            await approve(0);
+            await marketplace.listNFT(dogNft.address, 0, 1);
+
+            await expect(marketplace.unListNFT(dogNft.address, 0)).to.be.emit(
+                marketplace,
+                ItemUnList
+            );
         });
     });
 });
