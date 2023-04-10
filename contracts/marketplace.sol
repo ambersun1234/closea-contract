@@ -36,6 +36,10 @@ contract Marketplace {
         uint256 indexed tokenID,
         uint256 price
     );
+    event ItemUnList(
+        address indexed nftContractAddress,
+        uint256 indexed tokenID
+    );
     event ItemTransferred(
         address indexed buyer,
         address indexed nftContractAddress,
@@ -108,6 +112,19 @@ contract Marketplace {
         listingItems[nftContractAddress][tokenID] = Item(price, msg.sender);
 
         emit ItemListed(msg.sender, nftContractAddress, tokenID, price);
+    }
+
+    function unListNFT(
+        address nftContractAddress,
+        uint256 tokenID
+    ) external isNFTOwner(nftContractAddress, tokenID, msg.sender) {
+        if (!isListed(nftContractAddress, tokenID)) {
+            revert Marketplace__NotListed(nftContractAddress, tokenID);
+        }
+
+        removeItem(nftContractAddress, tokenID);
+
+        emit ItemUnList(nftContractAddress, tokenID);
     }
 
     function purchaseNFT(
