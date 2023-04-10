@@ -15,6 +15,7 @@ contract Dog is ERC721 {
 
     function mint() public {
         _safeMint(msg.sender, tokenID);
+        tokenID += 1;
     }
 
     function tokenURI(
