@@ -127,6 +127,20 @@ contract Marketplace {
         emit ItemUnList(nftContractAddress, tokenID);
     }
 
+    function updateListNFT(
+        address nftContractAddress,
+        uint256 tokenID,
+        uint256 newPrice
+    ) external isNFTOwner(nftContractAddress, tokenID, msg.sender) {
+        if (!isListed(nftContractAddress, tokenID)) {
+            revert Marketplace__NotListed(nftContractAddress, tokenID);
+        }
+
+        listingItems[nftContractAddress][tokenID].price = newPrice;
+
+        emit ItemListed(msg.sender, nftContractAddress, tokenID, newPrice);
+    }
+
     function purchaseNFT(
         address nftContractAddress,
         uint256 tokenID
