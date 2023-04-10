@@ -307,6 +307,7 @@ describe("marketplace", () => {
         it("Should revert if item not listed", async () => {
             await mint();
             await approve(0);
+
             await expect(
                 marketplace.updateListNFT(dogNft.address, 0, 2)
             ).to.be.revertedWithCustomError(marketplace, NotListed);
