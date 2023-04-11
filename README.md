@@ -15,7 +15,7 @@ This project contains the marketplace smart contract that used for decentralized
 + Withdraw all the funds that you got from selling NFTs
 
 ## Prerequisite
-Copy [.env.example](./env.example) and fill in your information such as rpc url, private key ... etc.
+Copy [.env.example](./.env.example) and fill in your information such as rpc url, private key ... etc.
 
 ## Build
 ```shell
