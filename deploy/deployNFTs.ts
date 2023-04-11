@@ -25,6 +25,13 @@ const deployNFTs: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         log: true,
         waitConfirmations: 1
     });
+
+    await deploy("Doggy", {
+        from: deployer,
+        args: args,
+        log: true,
+        waitConfirmations: 1
+    });
 };
 
 deployNFTs.tags = ["nft"];
