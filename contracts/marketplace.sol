@@ -4,6 +4,8 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+error Marketplace__NoFund();
+error Marketplace__TransferFailed();
 error Marketplace__PriceTooLow();
 error Marketplace__NotApproved();
 error Marketplace__NotOwner();
@@ -163,5 +165,28 @@ contract Marketplace {
         );
         removeItem(nftContractAddress, tokenID);
         transferItem(nftContractAddress, tokenID, item.seller, msg.sender);
+    }
+
+    function withdraw() external {
+        uint256 earnedAmount = 0;
+
+        for (uint256 index = 0; index < soldItems[msg.sender].length; index++) {
+            earnedAmount += soldItems[msg.sender][index].soldPrice;
+        }
+
+        if (earnedAmount <= 0) {
+            revert Marketplace__NoFund();
+        }
+
+        delete soldItems[msg.sender];
+
+        (bool success, ) = payable(msg.sender).call{value: earnedAmount}("");
+        if (!success) {
+            revert Marketplace__TransferFailed();
+        }
+    }
+
+    function getSoldItems() public view returns (SoldItemRecord[] memory) {
+        return soldItems[msg.sender];
     }
 }
