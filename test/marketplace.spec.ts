@@ -595,7 +595,7 @@ describe("marketplace", () => {
             await mint(dogNft);
             await approve(dogNft, marketplace, 0);
             await marketplace.listNFT(dogNft.address, 0, 1);
-            await marketplace.purchaseNFT(dogNft.address, 0, { value: 1 });
+            await peopleMarketplace.purchaseNFT(dogNft.address, 0, { value: 1 });
 
             await mint(doggyNft);
             await approve(doggyNft, marketplace, 0);
