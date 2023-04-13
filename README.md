@@ -3,6 +3,8 @@
 ![](https://github.com/ambersun1234/closea-contract/actions/workflows/unitTest.yaml/badge.svg)
 ![](https://img.shields.io/github/license/ambersun1234/closea-contract)
 
+![](./closea.jpg)
+
 Smart contracts for [Closea](https://github.com/ambersun1234/closea)
 
 ## Introduction
