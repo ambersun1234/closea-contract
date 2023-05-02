@@ -10,7 +10,7 @@ const deployMarketPlace: DeployFunction = async (
 
   await deploy("Marketplace", {
     from: deployer,
-    args: [],
+    args: [10],
     log: true,
     waitConfirmations: 1,
   });

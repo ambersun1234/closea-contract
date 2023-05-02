@@ -3,17 +3,15 @@ import { deployments, ethers, getNamedAccounts } from "hardhat";
 import { assert, expect } from "chai";
 
 import { Dog, Marketplace } from "../typechain-types";
-import { marketplaceSol } from "../typechain-types/contracts";
 
 describe("marketplace", () => {
     const AlreadyListed = "Marketplace__AlreadyListed";
     const NotNFTOwner = "Marketplace__NotOwner";
     const NotApproved = "Marketplace__NotApproved";
     const PriceTooLow = "Marketplace__PriceTooLow";
-    const PriceNotEnough = "Marketplace__PriceNotEnough";
+    const InvalidPrice = "Marketplace__InvalidPrice";
     const NotListed = "Marketplace__NotListed";
     const NoFund = "Marketplace__NoFund";
-    const TransferFailed = "Marketplace__TransferFailed";
 
     const ItemTransferred = "ItemTransferred";
     const ItemListed = "ItemListed";
@@ -51,8 +49,8 @@ describe("marketplace", () => {
     };
 
     const soldItemsEqual = (
-        actual: Marketplace.SoldItemRecordStructOutput[],
-        expect: Marketplace.SoldItemRecordStruct[]
+        actual: Marketplace.ItemRecordStructOutput[],
+        expect: Marketplace.ItemRecordStruct[]
     ): boolean => {
         if (actual.length !== expect.length) return false;
 
@@ -195,7 +193,7 @@ describe("marketplace", () => {
                 marketplace.purchaseNFT(dogNft.address, 0, {
                     value: ethers.utils.parseEther("0.01")
                 })
-            ).to.be.revertedWithCustomError(marketplace, PriceNotEnough);
+            ).to.be.revertedWithCustomError(marketplace, InvalidPrice);
         });
 
         it("Should purchase successfully if price equal to sell price", async () => {
@@ -218,7 +216,7 @@ describe("marketplace", () => {
             assert.equal(await transactionStatus(response), statusSuccess);
         });
 
-        it("Should purchase successfully if price greater than sell price", async () => {
+        it("Should purchase fail if price greater than sell price", async () => {
             const price = ethers.utils.parseEther("1");
             const people = (await ethers.getSigners())[1];
             const peopleMarketplace = marketplace.connect(people);
@@ -227,21 +225,18 @@ describe("marketplace", () => {
             await approve(dogNft, marketplace, 0);
 
             await marketplace.listNFT(dogNft.address, 0, price);
-            const response = await peopleMarketplace.purchaseNFT(
-                dogNft.address,
-                0,
-                {
+            await expect(
+                peopleMarketplace.purchaseNFT(dogNft.address, 0, {
                     value: ethers.utils.parseEther("2")
-                }
-            );
-            assert.equal(await transactionStatus(response), statusSuccess);
+                })
+            ).to.be.revertedWithCustomError(marketplace, InvalidPrice);
         });
 
         it("Should remove item from the marketplace after purchase successfully", async () => {
             await mint(dogNft);
             await approve(dogNft, marketplace, 0);
             await marketplace.listNFT(dogNft.address, 0, 1);
-            await marketplace.purchaseNFT(dogNft.address, 0, { value: 2 });
+            await marketplace.purchaseNFT(dogNft.address, 0, { value: 1 });
             await expect(
                 marketplace.purchaseNFT(dogNft.address, 0)
             ).to.be.revertedWithCustomError(marketplace, NotListed);
@@ -255,7 +250,7 @@ describe("marketplace", () => {
             await approve(dogNft, marketplace, 0);
             await marketplace.listNFT(dogNft.address, 0, 1);
             await peopleMarketplace.purchaseNFT(dogNft.address, 0, {
-                value: 2
+                value: 1
             });
             assert.equal(await dogNft.ownerOf(0), people.address);
         });
@@ -266,7 +261,7 @@ describe("marketplace", () => {
             await marketplace.listNFT(dogNft.address, 0, 1);
 
             const response = await marketplace.purchaseNFT(dogNft.address, 0, {
-                value: 2
+                value: 1
             });
             const receipt = await response.wait(1);
 
@@ -376,7 +371,7 @@ describe("marketplace", () => {
 
             await expect(
                 marketplace.purchaseNFT(dogNft.address, 0, { value: 1 })
-            ).to.be.revertedWithCustomError(marketplace, PriceNotEnough);
+            ).to.be.revertedWithCustomError(marketplace, InvalidPrice);
             const response = await marketplace.purchaseNFT(dogNft.address, 0, {
                 value: 2
             });
@@ -435,9 +430,10 @@ describe("marketplace", () => {
         });
 
         it("Should withdraw money if 1 nft sold", async () => {
-            const price = 1;
+            const price = ethers.utils.parseEther("1");
             const people = (await ethers.getSigners())[1];
             const peopleMarketplace = marketplace.connect(people);
+            const revenueShare = await marketplace.calculateShare(price);
 
             await mint(dogNft);
             await approve(dogNft, marketplace, 0);
@@ -453,31 +449,7 @@ describe("marketplace", () => {
 
             const currentBalance = await ethers.provider.getBalance(deployer);
             assert.equal(
-                currentBalance.add(gas).toString(),
-                previousBalance.add(price).toString()
-            );
-        });
-
-        it("Should withdraw money if 1 nft sold but sold price is higher than default price", async () => {
-            const price = ethers.utils.parseEther("0.001");
-            const people = (await ethers.getSigners())[1];
-            const peopleMarketplace = marketplace.connect(people);
-
-            await mint(dogNft);
-            await approve(dogNft, marketplace, 0);
-            await marketplace.listNFT(dogNft.address, 0, 1);
-            await peopleMarketplace.purchaseNFT(dogNft.address, 0, {
-                value: price
-            });
-
-            const previousBalance = await ethers.provider.getBalance(deployer);
-            const response = await marketplace.withdraw();
-            const gas = await gasPrice(response);
-            assert.equal(await transactionStatus(response), statusSuccess);
-
-            const currentBalance = await ethers.provider.getBalance(deployer);
-            assert.equal(
-                currentBalance.add(gas).toString(),
+                currentBalance.add(gas).add(revenueShare).toString(),
                 previousBalance.add(price).toString()
             );
         });
@@ -486,6 +458,7 @@ describe("marketplace", () => {
             const price = ethers.utils.parseEther("0.001");
             const people = (await ethers.getSigners())[1];
             const peopleMarketplace = marketplace.connect(people);
+            const revenueShare = await marketplace.calculateShare(price);
 
             await mint(dogNft);
             await approve(dogNft, marketplace, 0);
@@ -508,7 +481,7 @@ describe("marketplace", () => {
 
             const currentBalance = await ethers.provider.getBalance(deployer);
             assert.equal(
-                currentBalance.add(gas).toString(),
+                currentBalance.add(gas).add(revenueShare.mul(2)).toString(),
                 previousBalance.add(price.mul(2)).toString()
             );
         });
@@ -543,9 +516,86 @@ describe("marketplace", () => {
         });
     });
 
+    describe("withdrawRevenue", () => {
+        it("Should withdraw fail if no revenue", async () => {
+            await expect(
+                marketplace.withdrawRevenue()
+            ).to.be.revertedWithCustomError(marketplace, NoFund);
+        });
+
+        it("Should withdraw fail if not owner of contract", async () => {
+            const price = ethers.utils.parseEther("1");
+
+            await mint(dogNft);
+            await approve(dogNft, marketplace, 0);
+            await marketplace.listNFT(dogNft.address, 0, price);
+            await marketplace.purchaseNFT(dogNft.address, 0, { value: price });
+
+            const people = (await ethers.getSigners())[2];
+            const peopleMarketplace = await marketplace.connect(people);
+
+            await expect(peopleMarketplace.withdrawRevenue()).to.be.reverted;
+        });
+
+        it("Should withdraw successfully if 1 nft sold", async () => {
+            const people = (await ethers.getSigners())[2];
+            const peopleMarketplace = await marketplace.connect(people);
+            const price = ethers.utils.parseEther("1");
+            const revenue = await marketplace.calculateShare(price);
+
+            await mint(dogNft);
+            await approve(dogNft, marketplace, 0);
+            await marketplace.listNFT(dogNft.address, 0, price);
+            await peopleMarketplace.purchaseNFT(dogNft.address, 0, {
+                value: price
+            });
+
+            const previousBalance = await ethers.provider.getBalance(deployer);
+            const gas = await gasPrice(await marketplace.withdrawRevenue());
+            const newBalance = await ethers.provider.getBalance(deployer);
+
+            assert.equal(
+                newBalance.add(gas).toString(),
+                previousBalance.add(revenue).toString()
+            );
+        });
+
+        it("Should withdraw successfully if update the share percentage", async () => {
+            const people = (await ethers.getSigners())[2];
+            const peopleMarketplace = await marketplace.connect(people);
+            const price = ethers.utils.parseEther("1");
+            const price2 = ethers.utils.parseEther("0.16");
+            const revenue = await marketplace.calculateShare(price);
+
+            await mint(dogNft);
+            await approve(dogNft, marketplace, 0);
+            await marketplace.listNFT(dogNft.address, 0, price);
+            await peopleMarketplace.purchaseNFT(dogNft.address, 0, {
+                value: price
+            });
+
+            await marketplace.updateShare(30);
+            const revenue2 = await marketplace.calculateShare(price2);
+
+            await mint(dogNft);
+            await approve(dogNft, marketplace, 1);
+            await marketplace.listNFT(dogNft.address, 1, price2);
+            await marketplace.purchaseNFT(dogNft.address, 1, { value: price2 });
+
+            const previousBalance = await ethers.provider.getBalance(deployer);
+            const gas = await gasPrice(await marketplace.withdrawRevenue());
+            const newBalance = await ethers.provider.getBalance(deployer);
+
+            assert.equal(
+                newBalance.add(gas).toString(),
+                previousBalance.add(revenue).add(revenue2).toString()
+            );
+        });
+    });
+
     describe("getSoldItems", () => {
         it("Should return empty array if no one have bought", async () => {
-            const soldItemArr: Marketplace.SoldItemRecordStruct[] =
+            const soldItemArr: Marketplace.ItemRecordStruct[] =
                 await marketplace.getSoldItems();
             assert.deepEqual(soldItemArr, []);
         });
@@ -556,33 +606,14 @@ describe("marketplace", () => {
             await marketplace.listNFT(dogNft.address, 0, 1);
             await marketplace.purchaseNFT(dogNft.address, 0, { value: 1 });
 
-            let expectedArr: Marketplace.SoldItemRecordStruct[] = [
+            let expectedArr: Marketplace.ItemRecordStruct[] = [
                 {
                     nftContractAddress: dogNft.address,
                     tokenID: BigNumber.from(0),
                     soldPrice: BigNumber.from(1)
                 }
             ];
-            const soldItemArr: Marketplace.SoldItemRecordStructOutput[] =
-                await marketplace.getSoldItems();
-
-            assert(soldItemsEqual(soldItemArr, expectedArr));
-        });
-
-        it("Should return array with 1 entry if 1 nft sold but sold price is higher than default price", async () => {
-            await mint(dogNft);
-            await approve(dogNft, marketplace, 0);
-            await marketplace.listNFT(dogNft.address, 0, 1);
-            await marketplace.purchaseNFT(dogNft.address, 0, { value: 2 });
-
-            let expectedArr: Marketplace.SoldItemRecordStruct[] = [
-                {
-                    nftContractAddress: dogNft.address,
-                    tokenID: BigNumber.from(0),
-                    soldPrice: BigNumber.from(2)
-                }
-            ];
-            const soldItemArr: Marketplace.SoldItemRecordStructOutput[] =
+            const soldItemArr: Marketplace.ItemRecordStructOutput[] =
                 await marketplace.getSoldItems();
 
             assert(soldItemsEqual(soldItemArr, expectedArr));
@@ -595,16 +626,18 @@ describe("marketplace", () => {
             await mint(dogNft);
             await approve(dogNft, marketplace, 0);
             await marketplace.listNFT(dogNft.address, 0, 1);
-            await peopleMarketplace.purchaseNFT(dogNft.address, 0, { value: 1 });
+            await peopleMarketplace.purchaseNFT(dogNft.address, 0, {
+                value: 1
+            });
 
             await mint(doggyNft);
             await approve(doggyNft, marketplace, 0);
             await marketplace.listNFT(doggyNft.address, 0, 1);
             await peopleMarketplace.purchaseNFT(doggyNft.address, 0, {
-                value: 2
+                value: 1
             });
 
-            let expectedArr: Marketplace.SoldItemRecordStruct[] = [
+            let expectedArr: Marketplace.ItemRecordStruct[] = [
                 {
                     nftContractAddress: dogNft.address,
                     tokenID: BigNumber.from(0),
@@ -613,10 +646,10 @@ describe("marketplace", () => {
                 {
                     nftContractAddress: doggyNft.address,
                     tokenID: BigNumber.from(0),
-                    soldPrice: BigNumber.from(2)
+                    soldPrice: BigNumber.from(1)
                 }
             ];
-            const soldItemArr: Marketplace.SoldItemRecordStructOutput[] =
+            const soldItemArr: Marketplace.ItemRecordStructOutput[] =
                 await marketplace.getSoldItems();
 
             assert(soldItemsEqual(soldItemArr, expectedArr));

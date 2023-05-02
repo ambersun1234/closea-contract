@@ -4,6 +4,8 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+import "./revenue.sol";
+
 error Marketplace__NoFund();
 error Marketplace__TransferFailed();
 error Marketplace__PriceTooLow();
@@ -11,26 +13,32 @@ error Marketplace__NotApproved();
 error Marketplace__NotOwner();
 error Marketplace__AlreadyListed(address nftContractAddress, uint256 tokenID);
 error Marketplace__NotListed(address nftContractAddress, uint256 tokenID);
-error Marketplace__PriceNotEnough(
+error Marketplace__InvalidPrice(
     address nftContractAddress,
     uint256 tokenID,
     uint256 price
 );
 
-contract Marketplace {
-    struct Item {
+contract Marketplace is Revenue {
+    struct Price {
+        uint256 revenue;
         uint256 price;
+    }
+
+    struct Item {
+        Price price;
         address seller;
     }
 
-    struct SoldItemRecord {
+    struct ItemRecord {
         address nftContractAddress;
         uint256 tokenID;
         uint256 soldPrice;
     }
 
     mapping(address => mapping(uint256 => Item)) private listingItems;
-    mapping(address => SoldItemRecord[]) private soldItems;
+    mapping(address => ItemRecord[]) private soldItems;
+    uint256 private totalRevenueShare;
 
     event ItemListed(
         address indexed seller,
@@ -47,6 +55,8 @@ contract Marketplace {
         address indexed nftContractAddress,
         uint256 indexed tokenID
     );
+
+    constructor(uint8 _share) Revenue(_share) {}
 
     modifier isNFTOwner(
         address nftContractAddress,
@@ -72,12 +82,16 @@ contract Marketplace {
         _;
     }
 
+    function getTotalPrice(Price memory price) internal pure returns (uint256) {
+        return price.price + price.revenue;
+    }
+
     function isListed(
         address nftContractAddress,
         uint256 tokenID
     ) internal view returns (bool) {
         Item memory item = listingItems[nftContractAddress][tokenID];
-        return item.price > 0;
+        return getTotalPrice(item.price) > 0;
     }
 
     function removeItem(address nftContractAddress, uint256 tokenID) internal {
@@ -111,7 +125,13 @@ contract Marketplace {
             revert Marketplace__PriceTooLow();
         }
 
-        listingItems[nftContractAddress][tokenID] = Item(price, msg.sender);
+        uint256 share = calculateShare(price);
+        Price memory priceStruct = Price(share, price - share);
+
+        listingItems[nftContractAddress][tokenID] = Item(
+            priceStruct,
+            msg.sender
+        );
 
         emit ItemListed(msg.sender, nftContractAddress, tokenID, price);
     }
@@ -138,7 +158,10 @@ contract Marketplace {
             revert Marketplace__NotListed(nftContractAddress, tokenID);
         }
 
-        listingItems[nftContractAddress][tokenID].price = newPrice;
+        uint256 share = calculateShare(newPrice);
+        Price memory priceStruct = Price(share, newPrice - share);
+
+        listingItems[nftContractAddress][tokenID].price = priceStruct;
 
         emit ItemListed(msg.sender, nftContractAddress, tokenID, newPrice);
     }
@@ -152,17 +175,20 @@ contract Marketplace {
         }
 
         Item memory item = listingItems[nftContractAddress][tokenID];
-        if (msg.value < item.price) {
-            revert Marketplace__PriceNotEnough(
+        uint256 totalPrice = getTotalPrice(item.price);
+        if (msg.value != totalPrice) {
+            revert Marketplace__InvalidPrice(
                 nftContractAddress,
                 tokenID,
-                item.price
+                totalPrice
             );
         }
 
         soldItems[item.seller].push(
-            SoldItemRecord(nftContractAddress, tokenID, msg.value)
+            ItemRecord(nftContractAddress, tokenID, item.price.price)
         );
+        totalRevenueShare += item.price.revenue;
+
         removeItem(nftContractAddress, tokenID);
         transferItem(nftContractAddress, tokenID, item.seller, msg.sender);
     }
@@ -186,7 +212,21 @@ contract Marketplace {
         }
     }
 
-    function getSoldItems() public view returns (SoldItemRecord[] memory) {
+    function withdrawRevenue() external onlyOwner {
+        if (totalRevenueShare <= 0) {
+            revert Marketplace__NoFund();
+        }
+
+        uint256 revenueShare = totalRevenueShare;
+        totalRevenueShare = 0;
+
+        (bool success, ) = payable(owner()).call{value: revenueShare}("");
+        if (!success) {
+            revert Marketplace__TransferFailed();
+        }
+    }
+
+    function getSoldItems() public view returns (ItemRecord[] memory) {
         return soldItems[msg.sender];
     }
 }
