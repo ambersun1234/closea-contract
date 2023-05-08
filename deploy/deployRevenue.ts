@@ -1,14 +1,14 @@
 import { DeployFunction } from "hardhat-deploy/dist/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
-const deployMarketPlace: DeployFunction = async (
+const deployRevenue: DeployFunction = async (
   hre: HardhatRuntimeEnvironment
 ) => {
   const { deployments, getNamedAccounts } = hre;
   const { deployer } = await getNamedAccounts();
   const { deploy } = deployments;
 
-  await deploy("Marketplace", {
+  await deploy("Revenue", {
     from: deployer,
     args: [10],
     log: true,
@@ -16,6 +16,6 @@ const deployMarketPlace: DeployFunction = async (
   });
 };
 
-deployMarketPlace.tags = ["marketplace"];
+deployRevenue.tags = ["revenue"];
 
-export default deployMarketPlace;
+export default deployRevenue;
